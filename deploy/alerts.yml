@@ -1,0 +1,32 @@
+# PLACEHOLDER thresholds for this portfolio demo. They are not measured SLOs.
+groups:
+  - name: demo-placeholders
+    rules:
+      - alert: DemoCheckoutErrorRatio
+        expr: |
+          (
+            sum(rate(checkout_requests_total{status="error"}[5m]))
+            /
+            clamp_min(sum(rate(checkout_requests_total[5m])), 1e-9)
+          ) > 0.25
+        for: 2m
+        labels:
+          severity: warning
+          demo: "true"
+        annotations:
+          summary: Checkout error ratio is above the placeholder demo threshold
+          description: PLACEHOLDER threshold (0.25) for this portfolio demo. It is not a measured production SLO.
+
+      - alert: DemoCheckoutLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(checkout_duration_ms_bucket[5m]))
+          ) > 500
+        for: 2m
+        labels:
+          severity: warning
+          demo: "true"
+        annotations:
+          summary: Checkout p95 latency is above the placeholder demo threshold
+          description: PLACEHOLDER threshold (500ms) for this portfolio demo. It is not a measured production SLO.

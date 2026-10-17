@@ -1,0 +1,12 @@
+node_modules/
+dist/
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+venv/
+coverage/
+*.tsbuildinfo
+.env
+.DS_Store
+payments/payments

@@ -1,0 +1,96 @@
+name: otel-tracing-demo
+
+services:
+  redis:
+    image: redis:8.4.7
+    ports:
+      - "16379:6379"
+
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    environment:
+      JAEGER_LISTEN_HOST: 0.0.0.0
+    ports:
+      - "16686:16686"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.1
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./deploy/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "14317:4317"
+      - "14318:4318"
+      - "18889:8889"
+    depends_on:
+      - jaeger
+
+  prometheus:
+    image: prom/prometheus:v3.13.4
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "19090:9090"
+    depends_on:
+      - otel-collector
+
+  grafana:
+    image: grafana/grafana:13.0.11
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "13000:3000"
+    depends_on:
+      - prometheus
+      - jaeger
+
+  orders:
+    build: ./orders
+    environment:
+      PORT: "8080"
+      REDIS_URL: redis://redis:6379/0
+      QUEUE: payments.requests
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: orders
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+    ports:
+      - "18082:8080"
+    depends_on:
+      - redis
+      - otel-collector
+
+  payments:
+    build: ./payments
+    environment:
+      PORT: "8080"
+      REDIS_ADDR: redis:6379
+      QUEUE: payments.requests
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: payments
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+    ports:
+      - "18083:8080"
+    depends_on:
+      - redis
+      - otel-collector
+
+  gateway:
+    build: ./gateway
+    environment:
+      PORT: "8080"
+      ORDERS_URL: http://orders:8080
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: gateway
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+    ports:
+      - "18081:8080"
+    depends_on:
+      - orders
+      - otel-collector
